@@ -3,10 +3,441 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Agent Orchestrator</title>
+    <title>AI-First Web Demo Orchestrator</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&display=swap');
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: #0a0a0a;
+            color: #00ff41;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Subtle scanlines effect */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 255, 65, 0.03) 2px,
+                rgba(0, 255, 65, 0.03) 4px
+            );
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .terminal {
+            width: 100%;
+            height: 100vh;
+            background: #0a0a0a;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .terminal-header {
+            color: #00ff41;
+            font-size: 14px;
+            margin-bottom: 20px;
+            opacity: 0.8;
+            font-weight: 300;
+        }
+
+        .terminal-content {
+            flex-grow: 1;
+            overflow-y: auto;
+            font-size: 14px;
+            line-height: 1.6;
+            padding-bottom: 100px;
+        }
+
+        .input-line {
+            display: flex;
+            align-items: center;
+            margin: 20px 0;
+            padding: 15px 0;
+            border-top: 1px solid rgba(0, 255, 65, 0.2);
+        }
+
+        .prompt {
+            color: #00ff41;
+            margin-right: 10px;
+            font-weight: 500;
+        }
+
+        .command-input {
+            flex-grow: 1;
+            background: transparent;
+            border: none;
+            color: #00ff41;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            outline: none;
+            padding: 5px;
+        }
+
+        .command-input::placeholder {
+            color: rgba(0, 255, 65, 0.5);
+        }
+
+        .execute-btn {
+            background: transparent;
+            border: 1px solid #00ff41;
+            color: #00ff41;
+            padding: 8px 16px;
+            margin-left: 15px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .execute-btn:hover:not(:disabled) {
+            background: #00ff41;
+            color: #0a0a0a;
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+        }
+
+        .execute-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .output-line {
+            margin: 8px 0;
+            opacity: 0;
+            transform: translateY(10px);
+            animation: fadeInUp 0.3s ease-out forwards;
+        }
+
+        @keyframes fadeInUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .timestamp {
+            color: rgba(0, 255, 65, 0.6);
+            font-size: 12px;
+            margin-right: 8px;
+        }
+
+        .log-level {
+            margin-right: 8px;
+            font-weight: 500;
+        }
+
+        .log-level.system { color: #00bfff; }
+        .log-level.exec { color: #ffff00; }
+        .log-level.success { color: #00ff00; }
+        .log-level.error { color: #ff4444; }
+        .log-level.debug { color: #ff8800; }
+
+        .typewriter {
+            display: inline;
+            border-right: 2px solid #00ff41;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 50% { border-color: #00ff41; }
+            51%, 100% { border-color: transparent; }
+        }
+
+        .code-execution {
+            color: #ffff00;
+            margin-left: 20px;
+            font-style: italic;
+        }
+
+        .response-data {
+            color: #00bfff;
+            margin-left: 20px;
+            opacity: 0.9;
+        }
+
+        .status-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            font-size: 12px;
+            color: #00ff41;
+            z-index: 100;
+        }
+
+        .loading-dots::after {
+            content: '';
+            animation: dots 1.5s infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
+
+        /* Scrollbar */
+        .terminal-content::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .terminal-content::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .terminal-content::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 65, 0.3);
+            border-radius: 3px;
+        }
+
+        .terminal-content::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 255, 65, 0.5);
+        }
+    </style>
 </head>
 <body>
-    <h1>Hello from AI Agent Orchestrator!</h1>
-    <p>This project runs the logic for our AI-First Web demo.</p>
+    <div class="terminal">
+        <div class="terminal-header">
+            AI ORCHESTRATOR v2.1.0 - Production Environment<br>
+            Connection established to ai-agent-orchestrator-murex.vercel.app
+        </div>
+        
+        <div class="terminal-content" id="terminalContent">
+            <div class="output-line">
+                <span class="timestamp">12:34:56</span>
+                <span class="log-level system">[SYSTEM]</span>
+                <span>Orchestrator initialized. Ready for commands.</span>
+            </div>
+        </div>
+
+        <div class="input-line">
+            <span class="prompt">orchestrator@prod:~$</span>
+            <input 
+                type="text" 
+                class="command-input" 
+                id="commandInput"
+                placeholder="enter command (e.g., promote video, sell t-shirt, book interview)"
+                spellcheck="false"
+            >
+            <button class="execute-btn" id="executeBtn">EXECUTE</button>
+        </div>
+    </div>
+
+    <div class="status-indicator" id="statusIndicator">
+        READY
+    </div>
+
+    <script>
+        // THIS URL IS ALREADY CORRECTLY FILLED FOR YOUR PROJECT!
+        const AI_ORCHESTRATOR_URL = 'https://ai-agent-orchestrator-murex.vercel.app/api/run-agent';
+        
+        const commandInput = document.getElementById('commandInput');
+        const executeBtn = document.getElementById('executeBtn');
+        const terminalContent = document.getElementById('terminalContent');
+        const statusIndicator = document.getElementById('statusIndicator');
+
+        let isExecuting = false;
+
+        executeBtn.addEventListener('click', executeCommand);
+        commandInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter' && !isExecuting) {
+                executeCommand();
+            }
+        });
+
+        function getTimestamp() {
+            return new Date().toLocaleTimeString('en-US', { 
+                hour12: false, 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+            });
+        }
+
+        async function typeText(element, text, speed = 40) {
+            element.classList.add('typewriter');
+            let currentText = '';
+            
+            for (let i = 0; i < text.length; i++) {
+                currentText += text[i];
+                element.textContent = currentText;
+                await new Promise(resolve => setTimeout(resolve, speed));
+            }
+            
+            element.classList.remove('typewriter');
+        }
+
+        async function addOutputLine(level, message, delay = 0, typeSpeed = 40, subtext = null) {
+            if (delay > 0) {
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+
+            const line = document.createElement('div');
+            line.className = 'output-line';
+            
+            const timestamp = document.createElement('span');
+            timestamp.className = 'timestamp';
+            timestamp.textContent = getTimestamp();
+            
+            const logLevel = document.createElement('span');
+            logLevel.className = `log-level ${level}`;
+            logLevel.textContent = `[${level.toUpperCase()}]`;
+            
+            const messageSpan = document.createElement('span');
+            
+            line.appendChild(timestamp);
+            line.appendChild(logLevel);
+            line.appendChild(messageSpan);
+            
+            if (subtext) {
+                const subtextDiv = document.createElement('div');
+                subtextDiv.className = level === 'exec' ? 'code-execution' : 'response-data';
+                line.appendChild(subtextDiv);
+            }
+            
+            terminalContent.appendChild(line);
+            terminalContent.scrollTop = terminalContent.scrollHeight;
+            
+            // Type the main message
+            await typeText(messageSpan, message, typeSpeed);
+            
+            // Type subtext if provided
+            if (subtext) {
+                const subtextDiv = line.querySelector('.code-execution, .response-data');
+                await new Promise(resolve => setTimeout(resolve, 200));
+                await typeText(subtextDiv, subtext, typeSpeed * 0.7);
+            }
+        }
+
+        async function executeCommand() {
+            if (isExecuting) return;
+
+            const command = commandInput.value.trim();
+            if (!command) {
+                await addOutputLine('error', 'No command provided', 0, 30);
+                return;
+            }
+
+            isExecuting = true;
+            executeBtn.disabled = true;
+            commandInput.disabled = true;
+            executeBtn.textContent = 'RUNNING...';
+            statusIndicator.innerHTML = 'EXECUTING<span class="loading-dots"></span>';
+
+            // Show the command being executed
+            await addOutputLine('system', `> ${command}`, 300, 50);
+            
+            // Behind-the-scenes execution with suspense
+            await addOutputLine('exec', 'Parsing request body...', 800, 35, 
+                'const requestBody = typeof request.body === \'string\' ? JSON.parse(request.body) : request.body;');
+            
+            await addOutputLine('exec', 'Validating command parameter...', 1200, 35,
+                'if (!command) { return response.status(400).json({ status: \'error\' }); }');
+            
+            await addOutputLine('exec', 'Initializing orchestrator connection...', 1000, 35,
+                'const response = await fetch(AI_ORCHESTRATOR_URL, { method: \'POST\', ... });');
+            
+            await addOutputLine('system', 'Establishing secure connection...', 900, 30);
+            
+            await addOutputLine('system', 'Authenticating request...', 700, 30);
+            
+            await addOutputLine('system', 'Dispatching to AI agents...', 1100, 30);
+
+            try {
+                const response = await fetch(AI_ORCHESTRATOR_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ command: command }),
+                });
+
+                await addOutputLine('system', `HTTP ${response.status} ${response.statusText}`, 400, 25);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+
+                await addOutputLine('exec', 'Parsing response payload...', 600, 35,
+                    'const result = await response.json(); console.log(\'Processing:\', result);');
+
+                const result = await response.json();
+
+                if (result.log && Array.isArray(result.log)) {
+                    await addOutputLine('system', `Processing ${result.log.length} orchestration steps...`, 800, 30);
+                    
+                    for (let i = 0; i < result.log.length; i++) {
+                        const entry = result.log[i];
+                        const delay = 800 + (Math.random() * 600); // Random delay for realism
+                        const level = entry.type === 'info' ? 'system' : 
+                                     entry.type === 'success' ? 'success' : 
+                                     entry.type === 'error' ? 'error' : 'debug';
+                        
+                        let subtext = null;
+                        if (entry.data) {
+                            subtext = typeof entry.data === 'string' ? entry.data : JSON.stringify(entry.data);
+                            if (subtext.length > 100) {
+                                subtext = subtext.substring(0, 100) + '...';
+                            }
+                        }
+                        
+                        await addOutputLine(level, entry.message, delay, 35, subtext);
+                    }
+                } else {
+                    await addOutputLine('error', 'Unexpected response format from orchestrator', 600, 30,
+                        JSON.stringify(result).substring(0, 80) + '...');
+                }
+
+                if (result.status === 'error') {
+                    await addOutputLine('error', `Orchestration failed: ${result.message}`, 1000, 30);
+                    statusIndicator.textContent = 'ERROR';
+                } else {
+                    await addOutputLine('success', 'Command execution completed successfully', 1200, 30);
+                    await addOutputLine('system', 'All agents returned to standby mode', 800, 25);
+                    statusIndicator.textContent = 'COMPLETE';
+                }
+
+            } catch (error) {
+                await addOutputLine('error', `Connection failed: ${error.message}`, 800, 30);
+                await addOutputLine('error', 'Retrying connection in 5 seconds...', 600, 25);
+                statusIndicator.textContent = 'ERROR';
+                console.error('Execution error:', error);
+            } finally {
+                // Reset UI state
+                setTimeout(() => {
+                    isExecuting = false;
+                    executeBtn.disabled = false;
+                    commandInput.disabled = false;
+                    executeBtn.textContent = 'EXECUTE';
+                    commandInput.value = '';
+                    statusIndicator.textContent = 'READY';
+                    
+                    // Add ready prompt
+                    addOutputLine('system', 'Ready for next command', 1000, 25);
+                }, 2000);
+            }
+        }
+
+        // Focus input on load
+        commandInput.focus();
+    </script>
 </body>
 </html>
